@@ -1,0 +1,104 @@
+---
+title: "Support Myanmar's Pro-Democracy Movement"
+output: github_document
+---
+
+```{r setup, include=FALSE, warning = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+
+library(dplyr)
+library(ggplot2)
+library(babynames)
+
+# Load all packages here
+library(tidyverse)
+library(fivethirtyeight)
+library(leaflet)
+library(sf)
+library(maps)
+
+library(tmaptools)
+```
+
+## Can the world hear us?
+
+![alt text](fallenstar.jpg)
+
+## Support, spread the word, donate to Myanmar
+
+Click this to find a compilation of donation links:
+http://laphetyaylinks.com
+
+******
+
+------
+
+```{r, echo = FALSE}
+myanmar_map_sf <- "data/myanmar_data/myanmar_state_boundaries/" %>%
+  read_sf(crs = 4326)
+
+myanmar_township_sf <- "data/myanmar_data/myanmar-township-boundaries" %>% 
+  read_sf(crs=4326)
+# Plot
+myanmar_map_plot <- ggplot() +
+  geom_sf(data = myanmar_map_sf, col = "red")
+
+myanmar_healthsites_sf <- read_csv("data/myanmar_data/myanmar-healthsites.csv")%>%
+  filter(amenity == "clinic" | amenity == "hospital") %>% 
+  drop_na(X) %>% 
+  drop_na(Y) %>% 
+  drop_na(amenity) %>% 
+  st_as_sf(coords = c("X", "Y"), crs = 4326)
+
+#Load IDP csv file to sf
+myanmar_idp_csv <- read_csv("data/myanmar_data/myanmar-idp-2021.csv")
+
+
+#Join IDP sf and township sf to be able to map IDP population to township
+myanmar_township_sf <- myanmar_township_sf %>% 
+  rename(Pcode = TS_PCODE)
+
+myanmar_idp_merged_sf<- myanmar_idp_csv %>% 
+  left_join(myanmar_township_sf, by = "Pcode")
+
+#Add longitude and latitude
+myanmar_idp_merged_sf = myanmar_idp_merged_sf[-1,]
+
+myanmar_idp_merged_sf <- myanmar_idp_merged_sf %>% 
+  rename(`Female` = `Female 
+%...8`)
+
+myanmar_idp_merged_sf <- myanmar_idp_merged_sf %>% 
+  rename(Total_IDPs = `Internally Displaced Persons...3`)
+
+myanmar_idp_merged_sf <- myanmar_idp_merged_sf %>% 
+  mutate(percentage_of_female_idps = ifelse(Female != "48%","More Than 50%","Less Than 50%"))
+
+myanmar_idp_merged_sf <- myanmar_idp_merged_sf %>% 
+  mutate(
+    lon = purrr::map_dbl(geometry, ~st_centroid(.x)[[1]]),
+    lat = purrr::map_dbl(geometry, ~st_centroid(.x)[[2]])
+  )
+```
+
+
+## Displaced Populations in Myanmar due to the Myanmar military's human rights violations
+
+This map shows displaced populations in Myanmar before Feb 1st's coup. Now, the statistics are higher than that, and will only grow worse until the Myanmar military and its violence that has lasted for over 70 years is ended once and for all.
+
+```{r pressure, echo=FALSE, warnings = FALSE}
+myanmar_idp_merged_sf <- myanmar_idp_merged_sf %>%
+  mutate(Total_IDPs_discrete = cut_number(as.numeric(Total_IDPs), 5))
+
+ggplot() +
+  geom_sf(data = myanmar_map_sf) +
+  geom_sf(data = myanmar_idp_merged_sf, aes(fill = Total_IDPs_discrete, geometry = geometry), size = 0.5) +
+  geom_sf(data = myanmar_healthsites_sf, aes(col = amenity, alpha = 1), size = 1) +
+  geom_jitter(alpha = 0.2)+
+  scale_color_manual(values = c("#97db79","#c3a9fd"))+
+  scale_fill_manual(values = c("#feedde","#fdbe85","#fd8d3c","#e6550d","#a63603"))+
+  labs(title = "IDP Population and Healthsites in Myanmar", fill = "IDP\nPopulation\n", col = "Amenity")+
+  theme_light()+	
+  guides(alpha = "none")
+```
